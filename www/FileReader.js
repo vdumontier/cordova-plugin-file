@@ -295,16 +295,29 @@ FileReader.prototype.readAsBinaryString = function (file) {
  * Read file and return data as a binary data.
  *
  * @param file          {File} File object containing file properties
+ * @see https://stackoverflow.com/questions/54946864/out-of-memory-error-when-calling-readasarraybuffer-method-on-filereader-of-the-c
  */
-FileReader.prototype.readAsArrayBuffer = function (file) {
+ FileReader.prototype.readAsArrayBuffer = function(file) {
     if (initRead(this, file)) {
         return this._realReader.readAsArrayBuffer(file);
     }
 
     var totalSize = file.end - file.start;
-    readSuccessCallback.bind(this)('readAsArrayBuffer', null, file.start, totalSize, function (r) {
-        var resultArray = (this._progress === 0 ? new Uint8Array(totalSize) : new Uint8Array(this._result));
-        resultArray.set(new Uint8Array(r), this._progress);
+
+    readSuccessCallback.bind(this)('readAsArrayBuffer', null, file.start, totalSize, function(r) {
+        var resultArray;
+
+        if (!this.READ_CHUNKED) {
+            resultArray = new Uint8Array(totalSize);
+            resultArray.set(new Uint8Array(r), this._progress);
+        } else {
+            var newSize = FileReader.READ_CHUNK_SIZE;
+            if ((totalSize - this._progress) < FileReader.READ_CHUNK_SIZE) {
+                newSize = (totalSize - this._progress);
+            }
+            resultArray = new Uint8Array(newSize);
+            resultArray.set(new Uint8Array(r), 0);
+        }
         this._result = resultArray.buffer;
     }.bind(this));
 };
